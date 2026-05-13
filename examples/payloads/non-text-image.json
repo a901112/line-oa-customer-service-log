@@ -1,0 +1,26 @@
+{
+  "destination": "U00000000000000000000000000000000",
+  "events": [
+    {
+      "type": "message",
+      "mode": "active",
+      "timestamp": 1715731400000,
+      "source": {
+        "type": "user",
+        "userId": "U33333333333333333333333333333333"
+      },
+      "webhookEventId": "01HXSAMPLENONTEXTIMAGE0001",
+      "deliveryContext": {
+        "isRedelivery": false
+      },
+      "replyToken": "test-reply-token",
+      "message": {
+        "id": "500000000003",
+        "type": "image",
+        "contentProvider": {
+          "type": "line"
+        }
+      }
+    }
+  ]
+}

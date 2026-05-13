@@ -143,6 +143,7 @@ function buildSummary(analysis) {
     .filter(Boolean)
     .join(" ");
   const requestedPart = analysis.requested_part ? `需求零件：${analysis.requested_part}` : "";
+  const lookupStatus = analysis.part_lookup_status ? `查找狀態：${analysis.part_lookup_status}` : "";
   const oemNumbers =
     Array.isArray(analysis.possible_oem_numbers) && analysis.possible_oem_numbers.length > 0
       ? `可能 OEM/HD：${analysis.possible_oem_numbers.join(", ")}`
@@ -160,7 +161,16 @@ function buildSummary(analysis) {
           .join("；")}`
       : "";
   const confidence = analysis.confidence ? `信心：${analysis.confidence}` : "";
-  return [base, vehicle && `車種判斷：${vehicle}`, requestedPart, oemNumbers, aftermarketNumbers, links, confidence]
+  return [
+    lookupStatus,
+    base,
+    vehicle && `車種判斷：${vehicle}`,
+    requestedPart,
+    oemNumbers,
+    aftermarketNumbers,
+    links,
+    confidence
+  ]
     .filter(Boolean)
     .join("\n");
 }
@@ -170,6 +180,10 @@ function buildProductResearchNote(analysis) {
 
   if (analysis.product_or_part_number) {
     values.push(`客戶提供/提及：${analysis.product_or_part_number}`);
+  }
+
+  if (analysis.part_lookup_status) {
+    values.push(`查找狀態：${analysis.part_lookup_status}`);
   }
 
   if (Array.isArray(analysis.possible_oem_numbers) && analysis.possible_oem_numbers.length > 0) {

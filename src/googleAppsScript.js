@@ -6,11 +6,15 @@ export async function appendRowViaAppsScript(record) {
     throw new Error("GOOGLE_APPS_SCRIPT_WEBHOOK_URL is not configured.");
   }
 
-  const response = await fetch(url, {
+  const requestUrl = new URL(url);
+  if (secret) {
+    requestUrl.searchParams.set("secret", secret);
+  }
+
+  const response = await fetch(requestUrl, {
     method: "POST",
     headers: {
-      "Content-Type": "application/json",
-      "x-apps-script-secret": secret ?? ""
+      "Content-Type": "application/json"
     },
     body: JSON.stringify(record)
   });

@@ -11,7 +11,16 @@ const fallbackAnalysis = {
   customer_intent: "",
   language: "",
   keywords: [],
-  risk_note: ""
+  risk_note: "",
+  vehicle_year: "",
+  vehicle_make: "",
+  vehicle_model: "",
+  requested_part: "",
+  possible_oem_numbers: [],
+  possible_aftermarket_numbers: [],
+  research_links: [],
+  fitment_questions: [],
+  confidence: "低"
 };
 
 const analysisSchema = {
@@ -50,7 +59,40 @@ const analysisSchema = {
         type: "array",
         items: { type: "string" }
       },
-      risk_note: { type: "string" }
+      risk_note: { type: "string" },
+      vehicle_year: { type: "string" },
+      vehicle_make: { type: "string" },
+      vehicle_model: { type: "string" },
+      requested_part: { type: "string" },
+      possible_oem_numbers: {
+        type: "array",
+        items: { type: "string" }
+      },
+      possible_aftermarket_numbers: {
+        type: "array",
+        items: { type: "string" }
+      },
+      research_links: {
+        type: "array",
+        items: {
+          type: "object",
+          additionalProperties: false,
+          properties: {
+            title: { type: "string" },
+            url: { type: "string" },
+            note: { type: "string" }
+          },
+          required: ["title", "url", "note"]
+        }
+      },
+      fitment_questions: {
+        type: "array",
+        items: { type: "string" }
+      },
+      confidence: {
+        type: "string",
+        enum: ["低", "中", "高"]
+      }
     },
     required: [
       "summary",
@@ -63,7 +105,16 @@ const analysisSchema = {
       "customer_intent",
       "language",
       "keywords",
-      "risk_note"
+      "risk_note",
+      "vehicle_year",
+      "vehicle_make",
+      "vehicle_model",
+      "requested_part",
+      "possible_oem_numbers",
+      "possible_aftermarket_numbers",
+      "research_links",
+      "fitment_questions",
+      "confidence"
     ]
   }
 };
@@ -81,6 +132,10 @@ export function getFallbackAnalysis() {
 }
 
 export async function analyzeCustomerMessage(messageText) {
+  if (process.env.ENABLE_WEB_SEARCH === "true") {
+    return analyzeCustomerMessageWithWebSearch(messageText);
+  }
+
   const client = getClient();
   const model = process.env.OPENAI_MODEL || "gpt-4o-mini";
 
@@ -97,6 +152,9 @@ export async function analyzeCustomerMessage(messageText) {
         content: [
           "你是客服內部訊息分析助手，只能產生給人工客服參考的結構化資料。",
           "不要替客服撰寫可直接貼給客戶的完整回覆，也不要回答客戶實際問題。",
+          "你的定位是 AI 分析助理：協助客服理解需求、萃取車種年份零件資訊、提出查詢方向。",
+          "如果客戶詢問車用零件號碼，請盡量萃取車種、年份、零件類型、可能需要確認的 fitment 條件。",
+          "沒有網路或內部資料佐證時，不要編造 OEM 號碼、HD 號碼或 Fangster 號碼。",
           "請支援中文、英文、日文訊息。",
           "若訊息太短或無法判斷，category 必須為「其他」，urgency 必須為「中」。",
           "分類規則：",
@@ -126,6 +184,62 @@ export async function analyzeCustomerMessage(messageText) {
   const content = completion.choices?.[0]?.message?.content;
   if (!content) {
     throw new Error("OpenAI returned empty analysis content.");
+  }
+
+  return JSON.parse(content);
+}
+
+async function analyzeCustomerMessageWithWebSearch(messageText) {
+  const client = getClient();
+  const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+
+  const response = await client.responses.create({
+    model,
+    temperature: 0.2,
+    tools: [{ type: "web_search" }],
+    text: {
+      format: {
+        type: "json_schema",
+        name: analysisSchema.name,
+        strict: true,
+        schema: analysisSchema.schema
+      }
+    },
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              "你是 Fangster 客服團隊的 AI 分析助理，不直接回覆客戶，只整理給人工客服參考的 JSON。",
+              "任務重點：從客戶訊息判斷車種、年份、零件需求，並用 web search 查找可能的原廠零件號碼、HD/OEM 號碼、相關參考連結。",
+              "如果找到的號碼來源不一致或無法確認，請放在 possible_oem_numbers 或 possible_aftermarket_numbers，並在 risk_note 註明需人工確認。",
+              "不要聲稱 Fangster 內部料號或庫存，除非客戶訊息本身提供。Fangster 內部號碼與庫存需人工查內部系統。",
+              "suggested_action 要具體，例如：確認前後輪位置、煞車卡鉗型式、是否 ABS、以 OEM/HD 對照表查 Fangster 料號、再確認庫存。",
+              "research_links 最多 5 個，放與車種/零件/OEM 查詢最相關的來源。",
+              "若訊息太短或無法判斷，category =「其他」，urgency =「中」，confidence =「低」。",
+              "安全相關零件如煞車、輪框、車架，risk_note 必須提醒人工確認 fitment 與安全風險。",
+              "分類與急迫程度請遵守原本規則。"
+            ].join("\n")
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `請分析以下客戶訊息，必要時搜尋網路找可能的 OEM/HD 號碼與參考連結。僅輸出符合 schema 的 JSON：\n\n${messageText}`
+          }
+        ]
+      }
+    ]
+  });
+
+  const content = response.output_text;
+  if (!content) {
+    throw new Error("OpenAI returned empty web search analysis content.");
   }
 
   return JSON.parse(content);

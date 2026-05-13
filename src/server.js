@@ -143,8 +143,24 @@ function buildSummary(analysis) {
     .filter(Boolean)
     .join(" ");
   const requestedPart = analysis.requested_part ? `需求零件：${analysis.requested_part}` : "";
+  const oemNumbers =
+    Array.isArray(analysis.possible_oem_numbers) && analysis.possible_oem_numbers.length > 0
+      ? `可能 OEM/HD：${analysis.possible_oem_numbers.join(", ")}`
+      : "";
+  const aftermarketNumbers =
+    Array.isArray(analysis.possible_aftermarket_numbers) && analysis.possible_aftermarket_numbers.length > 0
+      ? `可能 aftermarket/Fangster 候選：${analysis.possible_aftermarket_numbers.join(", ")}`
+      : "";
+  const links =
+    Array.isArray(analysis.research_links) && analysis.research_links.length > 0
+      ? `參考來源：${analysis.research_links
+          .slice(0, 3)
+          .map((link) => link.title || link.url)
+          .filter(Boolean)
+          .join("；")}`
+      : "";
   const confidence = analysis.confidence ? `信心：${analysis.confidence}` : "";
-  return [base, vehicle && `車種判斷：${vehicle}`, requestedPart, confidence]
+  return [base, vehicle && `車種判斷：${vehicle}`, requestedPart, oemNumbers, aftermarketNumbers, links, confidence]
     .filter(Boolean)
     .join("\n");
 }

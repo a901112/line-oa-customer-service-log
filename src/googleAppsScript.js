@@ -25,9 +25,16 @@ export async function appendRowViaAppsScript(record) {
     throw new Error(`Google Apps Script append failed: ${response.status} ${text}`);
   }
 
+  let result;
   try {
-    return JSON.parse(text);
+    result = JSON.parse(text);
   } catch {
     return { ok: true, raw: text };
   }
+
+  if (result?.ok === false) {
+    throw new Error(`Google Apps Script returned error: ${text}`);
+  }
+
+  return result;
 }

@@ -1,0 +1,25 @@
+{
+  "destination": "U00000000000000000000000000000000",
+  "events": [
+    {
+      "type": "message",
+      "mode": "active",
+      "timestamp": 1715731300000,
+      "source": {
+        "type": "user",
+        "userId": "U22222222222222222222222222222222"
+      },
+      "webhookEventId": "01HXSAMPLEENGLISHQUALITY0001",
+      "deliveryContext": {
+        "isRedelivery": false
+      },
+      "replyToken": "test-reply-token",
+      "message": {
+        "id": "500000000002",
+        "type": "text",
+        "quoteToken": "quote-token",
+        "text": "The part arrived damaged and it does not fit my car. I need compensation or a replacement immediately."
+      }
+    }
+  ]
+}

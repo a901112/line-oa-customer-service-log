@@ -53,7 +53,14 @@ app.post("/line/webhook", express.raw({ type: "application/json" }), async (req,
 
 async function handleLineEvent(event) {
   const dedupeKey = makeDedupeKey(event);
+  console.log("Received LINE event:", {
+    type: event?.type,
+    messageType: event?.message?.type,
+    dedupeKey
+  });
+
   if (isDuplicate(dedupeKey)) {
+    console.log("Skipped duplicate LINE event:", dedupeKey);
     return;
   }
 
@@ -117,7 +124,8 @@ async function handleLineEvent(event) {
   };
 
   try {
-    await appendCustomerServiceRow(record);
+    const sheetResult = await appendCustomerServiceRow(record);
+    console.log("Customer service row append result:", sheetResult);
   } catch (error) {
     console.error("Google Sheets append failed:", error);
   }

@@ -191,12 +191,21 @@ export async function analyzeCustomerMessage(messageText) {
 
 async function analyzeCustomerMessageWithWebSearch(messageText) {
   const client = getClient();
-  const model = process.env.OPENAI_MODEL || "gpt-4.1-mini";
+  const model = process.env.OPENAI_MODEL || "gpt-5.5";
 
-  const response = await client.responses.create({
+  const request = {
     model,
     temperature: 0.2,
-    tools: [{ type: "web_search" }],
+    reasoning: { effort: "high" },
+    tools: [
+      {
+        type: "web_search",
+        search_context_size: "high",
+        external_web_access: true
+      }
+    ],
+    tool_choice: "required",
+    include: ["web_search_call.action.sources"],
     text: {
       format: {
         type: "json_schema",
@@ -214,7 +223,13 @@ async function analyzeCustomerMessageWithWebSearch(messageText) {
             text: [
               "你是 Fangster 客服團隊的 AI 分析助理，不直接回覆客戶，只整理給人工客服參考的 JSON。",
               "任務重點：從客戶訊息判斷車種、年份、零件需求，並用 web search 查找可能的原廠零件號碼、HD/OEM 號碼、相關參考連結。",
+              "只要客戶訊息包含車種/年份/零件類型，就必須實際搜尋網路，不可只重述客戶問題。",
+              "搜尋時要把客戶口語轉成英文關鍵字，例如：2008 Harley-Davidson FLHX brake pad OEM part number front rear、2008 Street Glide FLHX brake pads part number。",
+              "對 Harley-Davidson 車款，FLHX 通常也可能被稱為 Street Glide；請同時用 FLHX 與 Street Glide 搜尋。",
+              "如果客戶問煞車皮、輪框、車架等安全件，必須嘗試找前/後輪差異、ABS/非 ABS 或卡鉗差異。",
+              "summary 不能只是『客戶詢問...』，必須包含初步研究結果，例如：可能查到的 HD/OEM 號碼、仍需確認的 fitment 條件，或找不到可靠號碼的原因。",
               "如果找到的號碼來源不一致或無法確認，請放在 possible_oem_numbers 或 possible_aftermarket_numbers，並在 risk_note 註明需人工確認。",
+              "如果沒有找到可靠 OEM/HD 號碼，possible_oem_numbers 保持空陣列，但 product_or_part_number 或 suggested_action 必須寫明已搜尋但需人工用官方 parts catalog/內部系統確認。",
               "不要聲稱 Fangster 內部料號或庫存，除非客戶訊息本身提供。Fangster 內部號碼與庫存需人工查內部系統。",
               "suggested_action 要具體，例如：確認前後輪位置、煞車卡鉗型式、是否 ABS、以 OEM/HD 對照表查 Fangster 料號、再確認庫存。",
               "research_links 最多 5 個，放與車種/零件/OEM 查詢最相關的來源。",
@@ -235,7 +250,9 @@ async function analyzeCustomerMessageWithWebSearch(messageText) {
         ]
       }
     ]
-  });
+  };
+
+  const response = await client.responses.create(request);
 
   const content = response.output_text;
   if (!content) {

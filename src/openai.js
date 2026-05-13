@@ -198,20 +198,12 @@ export async function analyzeCustomerMessage(messageText) {
 async function analyzeCustomerMessageWithWebSearch(messageText) {
   const client = getClient();
   const model = process.env.OPENAI_MODEL || "gpt-5.5";
+  const researchText = await researchPartNumbers(client, model, messageText);
 
   const request = {
     model,
     temperature: 0.2,
     reasoning: { effort: "high" },
-    tools: [
-      {
-        type: "web_search",
-        search_context_size: "high",
-        external_web_access: true
-      }
-    ],
-    tool_choice: "required",
-    include: ["web_search_call.action.sources"],
     text: {
       format: {
         type: "json_schema",
@@ -228,23 +220,13 @@ async function analyzeCustomerMessageWithWebSearch(messageText) {
             type: "input_text",
             text: [
               "你是 Fangster 客服團隊的 AI 分析助理，不直接回覆客戶，只整理給人工客服參考的 JSON。",
-              "你的主要任務不是摘要，而是料號/品號查找。從客戶訊息判斷車種、年份、零件需求，並用 web search 查找可能的原廠零件號碼、HD/OEM 號碼、相關 aftermarket 品號候選與參考連結。",
-              "只要客戶訊息包含車種/年份/零件類型，就必須實際搜尋網路，不可只重述客戶問題。",
-              "如果客戶問「號碼」、「料號」、「品號」、「part number」、「OEM」、「有貨嗎」且訊息有車種或零件，possible_oem_numbers 或 possible_aftermarket_numbers 必須盡力填入候選；如果真的找不到，part_lookup_status 必須是「未查到可靠候選」或「需補充車輛條件」，並在 suggested_action 寫下一步該查什麼。",
-              "搜尋時要把客戶口語轉成英文關鍵字，例如：2008 Harley-Davidson FLHX brake pad OEM part number front rear、2008 Street Glide FLHX brake pads part number。",
-              "搜尋策略：先找官方/零件圖/parts fiche/OEM lookup，再找大型零件商或品牌型錄，再找論壇或賣場作輔助。不要只用單一賣場結果下結論。",
-              "對 Harley-Davidson 車款，FLHX 通常也可能被稱為 Street Glide；請同時用 FLHX 與 Street Glide 搜尋。",
-              "如果客戶問煞車皮、輪框、車架等安全件，必須嘗試找前/後輪差異、ABS/非 ABS 或卡鉗差異。",
+              "你的主要任務不是摘要，而是料號/品號查找。你會收到一段已經完成的網路料號研究結果，必須優先從該研究結果抽取 OEM/HD 料號、aftermarket 品號候選、fitment 條件與來源連結。",
+              "如果研究結果有候選號碼，part_lookup_status 必須是「已找到候選」，並把號碼填入 possible_oem_numbers 或 possible_aftermarket_numbers。",
               "summary 第一句必須是查找結果，不可只是『客戶詢問...』。格式優先使用：『料號查找：可能 OEM/HD ...；需確認 ...』或『料號查找：未找到可靠公開候選；需查 ...』。",
-              "如果找到的號碼來源不一致或無法確認，請放在 possible_oem_numbers 或 possible_aftermarket_numbers，並在 risk_note 註明需人工確認。",
-              "如果沒有找到可靠 OEM/HD 號碼，possible_oem_numbers 保持空陣列，但 product_or_part_number 或 suggested_action 必須寫明已搜尋但需人工用官方 parts catalog/內部系統確認。",
               "不要聲稱 Fangster 內部料號或庫存，除非客戶訊息本身提供。Fangster 內部號碼與庫存需人工查內部系統。",
-              "如果找到 OEM/HD 候選，suggested_action 要直接說：用候選 OEM/HD 到 Fangster 內部對照表查 Fangster 品號與庫存。不要泛泛說『請人工確認』。",
-              "suggested_action 要具體，例如：確認前後輪位置、煞車卡鉗型式、是否 ABS、以找到的 OEM/HD 候選查 Fangster 料號、再確認庫存。",
-              "research_links 最多 5 個，放與車種/零件/OEM 查詢最相關的來源。",
-              "若訊息太短或無法判斷，category =「其他」，urgency =「中」，confidence =「低」。",
+              "如果找到 OEM/HD 候選，suggested_action 要直接說：用候選 OEM/HD 到 Fangster 內部對照表查 Fangster 品號與庫存。",
               "安全相關零件如煞車、輪框、車架，risk_note 必須提醒人工確認 fitment 與安全風險。",
-              "分類與急迫程度請遵守原本規則。"
+              "若研究結果號碼互相衝突，請都列為候選並標示需確認前/後輪、ABS、卡鉗或年份。"
             ].join("\n")
           }
         ]
@@ -254,7 +236,14 @@ async function analyzeCustomerMessageWithWebSearch(messageText) {
         content: [
           {
             type: "input_text",
-            text: `請分析以下客戶訊息，必要時搜尋網路找可能的 OEM/HD 號碼與參考連結。僅輸出符合 schema 的 JSON：\n\n${messageText}`
+            text: [
+              "請根據客戶訊息與料號研究結果，整理成符合 schema 的 JSON。",
+              "",
+              `客戶訊息：${messageText}`,
+              "",
+              "料號研究結果：",
+              researchText
+            ].join("\n")
           }
         ]
       }
@@ -269,4 +258,59 @@ async function analyzeCustomerMessageWithWebSearch(messageText) {
   }
 
   return JSON.parse(content);
+}
+
+async function researchPartNumbers(client, model, messageText) {
+  const response = await client.responses.create({
+    model,
+    temperature: 0.1,
+    reasoning: { effort: "high" },
+    tools: [
+      {
+        type: "web_search",
+        search_context_size: "high",
+        external_web_access: true
+      }
+    ],
+    tool_choice: "required",
+    include: ["web_search_call.action.sources"],
+    input: [
+      {
+        role: "system",
+        content: [
+          {
+            type: "input_text",
+            text: [
+              "你是機車/汽車零件料號研究助理。你的唯一任務是從公開網路資料找出客戶需求對應的可能 OEM/原廠料號與 aftermarket 品號候選。",
+              "不要摘要客戶問題。不要寫客服話術。請實際搜尋。",
+              "搜尋策略：",
+              "1. 先把客戶口語轉成英文查詢。",
+              "2. 優先找官方 parts catalog、parts fiche、dealer fiche、品牌 catalog PDF、產品頁。",
+              "3. 再找大型零件商或品牌型錄。",
+              "4. 賣場/論壇只能作輔助，不可單獨作高信心結論。",
+              "5. 若是 Harley-Davidson FLHX，請同時搜尋 Street Glide、front brake caliper、rear brake pad、brake pad kit、OEM part number。",
+              "6. 若安全件有前後輪、ABS、卡鉗差異，必須分開列出。",
+              "輸出格式用純文字即可，但必須包含：",
+              "- possible OEM/HD numbers",
+              "- possible aftermarket numbers",
+              "- front/rear/fitment notes",
+              "- source URLs",
+              "- confidence and remaining questions"
+            ].join("\n")
+          }
+        ]
+      },
+      {
+        role: "user",
+        content: [
+          {
+            type: "input_text",
+            text: `請查找這個客戶需求的料號/品號候選：${messageText}`
+          }
+        ]
+      }
+    ]
+  });
+
+  return response.output_text || "未取得料號研究結果。";
 }

@@ -202,7 +202,6 @@ async function analyzeCustomerMessageWithWebSearch(messageText) {
 
   const request = {
     model,
-    temperature: 0.2,
     reasoning: { effort: "high" },
     text: {
       format: {
@@ -249,6 +248,7 @@ async function analyzeCustomerMessageWithWebSearch(messageText) {
       }
     ]
   };
+  addTemperatureIfSupported(request, model, 0.2);
 
   const response = await client.responses.create(request);
 
@@ -261,9 +261,8 @@ async function analyzeCustomerMessageWithWebSearch(messageText) {
 }
 
 async function researchPartNumbers(client, model, messageText) {
-  const response = await client.responses.create({
+  const request = {
     model,
-    temperature: 0.1,
     reasoning: { effort: "high" },
     tools: [
       {
@@ -310,7 +309,16 @@ async function researchPartNumbers(client, model, messageText) {
         ]
       }
     ]
-  });
+  };
+  addTemperatureIfSupported(request, model, 0.1);
+
+  const response = await client.responses.create(request);
 
   return response.output_text || "未取得料號研究結果。";
+}
+
+function addTemperatureIfSupported(request, model, temperature) {
+  if (!model.startsWith("gpt-5")) {
+    request.temperature = temperature;
+  }
 }

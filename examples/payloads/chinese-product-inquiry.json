@@ -1,0 +1,25 @@
+{
+  "destination": "U00000000000000000000000000000000",
+  "events": [
+    {
+      "type": "message",
+      "mode": "active",
+      "timestamp": 1715731200000,
+      "source": {
+        "type": "user",
+        "userId": "U11111111111111111111111111111111"
+      },
+      "webhookEventId": "01HXSAMPLECHINESEPRODUCT0001",
+      "deliveryContext": {
+        "isRedelivery": false
+      },
+      "replyToken": "test-reply-token",
+      "message": {
+        "id": "500000000001",
+        "type": "text",
+        "quoteToken": "quote-token",
+        "text": "您好，請問你們有 Toyota Corolla 2018 可以用的前保桿支架嗎？規格跟料號是什麼？"
+      }
+    }
+  ]
+}

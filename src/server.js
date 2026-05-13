@@ -104,14 +104,14 @@ async function handleLineEvent(event) {
     line_display_name: displayName,
     message_type: messageType,
     raw_message: rawMessage,
-    summary: analysis.summary ?? "",
+    summary: buildSummary(analysis),
     category: analysis.category ?? "其他",
-    product_or_part_number: analysis.product_or_part_number ?? "",
+    product_or_part_number: buildProductResearchNote(analysis),
     order_or_invoice: analysis.order_or_invoice ?? "",
     urgency: analysis.urgency ?? "中",
     requires_human_reply: analysis.requires_human_reply ?? true,
-    suggested_action: analysis.suggested_action ?? "",
-    customer_intent: analysis.customer_intent ?? "",
+    suggested_action: buildSuggestedAction(analysis),
+    customer_intent: buildCustomerIntent(analysis),
     language: analysis.language ?? "",
     keywords: analysis.keywords ?? [],
     risk_note: analysis.risk_note ?? "",
@@ -135,6 +135,77 @@ async function handleLineEvent(event) {
   } catch (error) {
     console.error("LINE reply failed:", error);
   }
+}
+
+function buildSummary(analysis) {
+  const base = analysis.summary ?? "";
+  const vehicle = [analysis.vehicle_year, analysis.vehicle_make, analysis.vehicle_model]
+    .filter(Boolean)
+    .join(" ");
+  const requestedPart = analysis.requested_part ? `需求零件：${analysis.requested_part}` : "";
+  const confidence = analysis.confidence ? `信心：${analysis.confidence}` : "";
+  return [base, vehicle && `車種判斷：${vehicle}`, requestedPart, confidence]
+    .filter(Boolean)
+    .join("\n");
+}
+
+function buildProductResearchNote(analysis) {
+  const values = [];
+
+  if (analysis.product_or_part_number) {
+    values.push(`客戶提供/提及：${analysis.product_or_part_number}`);
+  }
+
+  if (Array.isArray(analysis.possible_oem_numbers) && analysis.possible_oem_numbers.length > 0) {
+    values.push(`可能 OEM/HD 號碼：${analysis.possible_oem_numbers.join(", ")}`);
+  }
+
+  if (Array.isArray(analysis.possible_aftermarket_numbers) && analysis.possible_aftermarket_numbers.length > 0) {
+    values.push(`可能 aftermarket/Fangster 對照候選：${analysis.possible_aftermarket_numbers.join(", ")}`);
+  }
+
+  if (Array.isArray(analysis.research_links) && analysis.research_links.length > 0) {
+    values.push(
+      `參考連結：${analysis.research_links
+        .map((link) => `${link.title || "source"} ${link.url || ""}${link.note ? ` (${link.note})` : ""}`)
+        .join(" | ")}`
+    );
+  }
+
+  return values.join("\n");
+}
+
+function buildSuggestedAction(analysis) {
+  const actions = [];
+  if (analysis.suggested_action) {
+    actions.push(analysis.suggested_action);
+  }
+
+  if (Array.isArray(analysis.fitment_questions) && analysis.fitment_questions.length > 0) {
+    actions.push(`建議追問/確認：${analysis.fitment_questions.join("；")}`);
+  }
+
+  return actions.join("\n");
+}
+
+function buildCustomerIntent(analysis) {
+  const parts = [];
+  if (analysis.customer_intent) {
+    parts.push(analysis.customer_intent);
+  }
+
+  const vehicle = [analysis.vehicle_year, analysis.vehicle_make, analysis.vehicle_model]
+    .filter(Boolean)
+    .join(" ");
+  if (vehicle) {
+    parts.push(`車種：${vehicle}`);
+  }
+
+  if (analysis.requested_part) {
+    parts.push(`零件：${analysis.requested_part}`);
+  }
+
+  return parts.join("\n");
 }
 
 function getRawMessage(event) {

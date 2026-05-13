@@ -20,7 +20,8 @@ const fallbackAnalysis = {
   possible_aftermarket_numbers: [],
   research_links: [],
   fitment_questions: [],
-  confidence: "低"
+  confidence: "低",
+  part_lookup_status: "未查到可靠候選"
 };
 
 const analysisSchema = {
@@ -92,6 +93,10 @@ const analysisSchema = {
       confidence: {
         type: "string",
         enum: ["低", "中", "高"]
+      },
+      part_lookup_status: {
+        type: "string",
+        enum: ["已找到候選", "需補充車輛條件", "未查到可靠候選", "需查內部系統"]
       }
     },
     required: [
@@ -114,7 +119,8 @@ const analysisSchema = {
       "possible_aftermarket_numbers",
       "research_links",
       "fitment_questions",
-      "confidence"
+      "confidence",
+      "part_lookup_status"
     ]
   }
 };
@@ -222,16 +228,19 @@ async function analyzeCustomerMessageWithWebSearch(messageText) {
             type: "input_text",
             text: [
               "你是 Fangster 客服團隊的 AI 分析助理，不直接回覆客戶，只整理給人工客服參考的 JSON。",
-              "任務重點：從客戶訊息判斷車種、年份、零件需求，並用 web search 查找可能的原廠零件號碼、HD/OEM 號碼、相關參考連結。",
+              "你的主要任務不是摘要，而是料號/品號查找。從客戶訊息判斷車種、年份、零件需求，並用 web search 查找可能的原廠零件號碼、HD/OEM 號碼、相關 aftermarket 品號候選與參考連結。",
               "只要客戶訊息包含車種/年份/零件類型，就必須實際搜尋網路，不可只重述客戶問題。",
+              "如果客戶問「號碼」、「料號」、「品號」、「part number」、「OEM」、「有貨嗎」且訊息有車種或零件，possible_oem_numbers 或 possible_aftermarket_numbers 必須盡力填入候選；如果真的找不到，part_lookup_status 必須是「未查到可靠候選」或「需補充車輛條件」，並在 suggested_action 寫下一步該查什麼。",
               "搜尋時要把客戶口語轉成英文關鍵字，例如：2008 Harley-Davidson FLHX brake pad OEM part number front rear、2008 Street Glide FLHX brake pads part number。",
+              "搜尋策略：先找官方/零件圖/parts fiche/OEM lookup，再找大型零件商或品牌型錄，再找論壇或賣場作輔助。不要只用單一賣場結果下結論。",
               "對 Harley-Davidson 車款，FLHX 通常也可能被稱為 Street Glide；請同時用 FLHX 與 Street Glide 搜尋。",
               "如果客戶問煞車皮、輪框、車架等安全件，必須嘗試找前/後輪差異、ABS/非 ABS 或卡鉗差異。",
-              "summary 不能只是『客戶詢問...』，必須包含初步研究結果，例如：可能查到的 HD/OEM 號碼、仍需確認的 fitment 條件，或找不到可靠號碼的原因。",
+              "summary 第一句必須是查找結果，不可只是『客戶詢問...』。格式優先使用：『料號查找：可能 OEM/HD ...；需確認 ...』或『料號查找：未找到可靠公開候選；需查 ...』。",
               "如果找到的號碼來源不一致或無法確認，請放在 possible_oem_numbers 或 possible_aftermarket_numbers，並在 risk_note 註明需人工確認。",
               "如果沒有找到可靠 OEM/HD 號碼，possible_oem_numbers 保持空陣列，但 product_or_part_number 或 suggested_action 必須寫明已搜尋但需人工用官方 parts catalog/內部系統確認。",
               "不要聲稱 Fangster 內部料號或庫存，除非客戶訊息本身提供。Fangster 內部號碼與庫存需人工查內部系統。",
-              "suggested_action 要具體，例如：確認前後輪位置、煞車卡鉗型式、是否 ABS、以 OEM/HD 對照表查 Fangster 料號、再確認庫存。",
+              "如果找到 OEM/HD 候選，suggested_action 要直接說：用候選 OEM/HD 到 Fangster 內部對照表查 Fangster 品號與庫存。不要泛泛說『請人工確認』。",
+              "suggested_action 要具體，例如：確認前後輪位置、煞車卡鉗型式、是否 ABS、以找到的 OEM/HD 候選查 Fangster 料號、再確認庫存。",
               "research_links 最多 5 個，放與車種/零件/OEM 查詢最相關的來源。",
               "若訊息太短或無法判斷，category =「其他」，urgency =「中」，confidence =「低」。",
               "安全相關零件如煞車、輪框、車架，risk_note 必須提醒人工確認 fitment 與安全風險。",

@@ -2,7 +2,7 @@ import "dotenv/config";
 import express from "express";
 import { makeDedupeKey, isDuplicate } from "./dedupe.js";
 import { appendCustomerServiceRow } from "./googleSheets.js";
-import { getDisplayName, replyFixedMessage, verifyLineSignature } from "./line.js";
+import { getDisplayName, verifyLineSignature } from "./line.js";
 import { analyzeCustomerMessage, getFallbackAnalysis } from "./openai.js";
 import { nowTaipeiString } from "./utils/time.js";
 
@@ -128,12 +128,6 @@ async function handleLineEvent(event) {
     console.log("Customer service row append result:", sheetResult);
   } catch (error) {
     console.error("Google Sheets append failed:", error);
-  }
-
-  try {
-    await replyFixedMessage(event.replyToken);
-  } catch (error) {
-    console.error("LINE reply failed:", error);
   }
 }
 
